@@ -1,0 +1,52 @@
+:root {
+  --bg: #F1EDE4;
+  --text: #2C2C2C;
+  --primary: #846754;
+  --primary-hover: #6e5443;
+  --accent: #A5A58D;
+  --accent-light: #d6d3c4;
+  --white: #ffffff;
+  --card-bg: #faf7f2;
+  --border: #ddd8ce;
+  --success: #5a7a5a;
+  --error: #c0392b;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: 'Georgia', 'Times New Roman', serif;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3 {
+  font-family: 'Georgia', serif;
+  color: var(--text);
+}
+
+a {
+  color: var(--primary);
+  text-decoration: none;
+}
+
+button {
+  cursor: pointer;
+  font-family: inherit;
+}
+
+input, textarea, select {
+  font-family: inherit;
+}
+
+#root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}

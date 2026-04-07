@@ -1,0 +1,266 @@
+.page {
+  min-height: 100vh;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Hero ── */
+.hero {
+  display: grid;
+  grid-template-columns: 1fr 380px;
+  gap: 3rem;
+  align-items: center;
+  padding: 4rem 5rem;
+  background: var(--card-bg);
+  border-bottom: 1px solid var(--border);
+}
+
+@media (max-width: 800px) {
+  .hero {
+    grid-template-columns: 1fr;
+    padding: 2.5rem 1.5rem;
+    text-align: center;
+  }
+  .heroImage { order: -1; display: flex; justify-content: center; }
+}
+
+.eyebrow {
+  font-size: 0.78rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--primary);
+  margin-bottom: 1rem;
+}
+
+.headline {
+  font-size: 2.6rem;
+  font-weight: normal;
+  line-height: 1.25;
+  color: var(--text);
+  margin-bottom: 1.2rem;
+}
+
+@media (max-width: 800px) {
+  .headline { font-size: 1.9rem; }
+}
+
+.subheadline {
+  font-size: 1.05rem;
+  color: #666;
+  line-height: 1.8;
+  max-width: 520px;
+  margin-bottom: 2rem;
+}
+
+.ctaBtn {
+  background: var(--primary);
+  color: white;
+  border: none;
+  padding: 0.9rem 2.2rem;
+  border-radius: 6px;
+  font-size: 1rem;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.2s;
+  display: inline-block;
+}
+.ctaBtn:hover { background: var(--primary-hover); }
+
+.heroImage img {
+  width: 100%;
+  max-width: 340px;
+  border-radius: 12px;
+  object-fit: cover;
+  aspect-ratio: 3/4;
+  display: block;
+}
+
+/* ── Sections ── */
+.section {
+  padding: 4rem 5rem;
+}
+
+.sectionAlt {
+  background: var(--card-bg);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.sectionInner {
+  max-width: 860px;
+  margin: 0 auto;
+}
+
+@media (max-width: 800px) {
+  .section { padding: 2.5rem 1.5rem; }
+}
+
+.sectionTitle {
+  font-size: 1.55rem;
+  font-weight: normal;
+  color: var(--text);
+  margin-bottom: 1.2rem;
+}
+
+.sectionLead {
+  font-size: 1.05rem;
+  color: #555;
+  line-height: 1.8;
+  margin-bottom: 2.5rem;
+}
+
+/* Pillars */
+.pillars {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2rem;
+}
+
+@media (max-width: 700px) {
+  .pillars { grid-template-columns: 1fr; }
+}
+
+.pillar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.pillarIcon {
+  font-size: 1.6rem;
+  margin-bottom: 0.4rem;
+}
+
+.pillar h3 {
+  font-size: 1rem;
+  font-weight: normal;
+  color: var(--text);
+}
+
+.pillar p {
+  font-size: 0.88rem;
+  color: #666;
+  line-height: 1.7;
+}
+
+/* For you / Not for you */
+.twoCol {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3rem;
+}
+
+@media (max-width: 700px) {
+  .twoCol { grid-template-columns: 1fr; gap: 2rem; }
+}
+
+.checkList, .crossList {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.checkList li, .crossList li {
+  font-size: 0.92rem;
+  color: #555;
+  line-height: 1.6;
+  padding-left: 1.6rem;
+  position: relative;
+}
+
+.checkList li::before {
+  content: '✓';
+  position: absolute;
+  left: 0;
+  color: var(--primary);
+  font-weight: bold;
+}
+
+.crossList li::before {
+  content: '✕';
+  position: absolute;
+  left: 0;
+  color: var(--accent);
+}
+
+/* About */
+.aboutLayout {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  gap: 2.5rem;
+  align-items: start;
+}
+
+@media (max-width: 700px) {
+  .aboutLayout { grid-template-columns: 1fr; }
+}
+
+.aboutImg {
+  width: 100%;
+  border-radius: 10px;
+  object-fit: cover;
+  aspect-ratio: 1;
+}
+
+.aboutText p {
+  font-size: 0.95rem;
+  color: #555;
+  line-height: 1.8;
+}
+
+/* Offer */
+.offerSection {
+  background: var(--bg);
+}
+
+.offerCard {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 2.5rem 3rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2rem;
+}
+
+@media (max-width: 700px) {
+  .offerCard { flex-direction: column; align-items: flex-start; padding: 2rem 1.5rem; }
+}
+
+.offerTitle {
+  font-size: 1.35rem;
+  font-weight: normal;
+  color: var(--text);
+  margin-bottom: 0.8rem;
+}
+
+.offerMeta {
+  display: flex;
+  gap: 1.2rem;
+  font-size: 0.88rem;
+  color: var(--primary);
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.offerDesc {
+  font-size: 0.92rem;
+  color: #666;
+  line-height: 1.7;
+  max-width: 460px;
+}
+
+/* Footer */
+.footer {
+  text-align: center;
+  padding: 1.5rem;
+  color: #aaa;
+  font-size: 0.85rem;
+  border-top: 1px solid var(--border);
+  margin-top: auto;
+}
+
+.footer a { color: var(--primary); }

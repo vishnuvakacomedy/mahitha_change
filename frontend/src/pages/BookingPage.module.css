@@ -1,0 +1,306 @@
+.page {
+  min-height: 100vh;
+  background: var(--bg);
+  padding: 1.5rem 2rem 3rem;
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+.back {
+  background: none;
+  border: none;
+  color: var(--primary);
+  font-size: 0.9rem;
+  padding: 0;
+  margin-bottom: 1.5rem;
+  cursor: pointer;
+  display: block;
+}
+.back:hover { text-decoration: underline; }
+
+/* Two-column layout */
+.layout {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  gap: 0;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  min-height: 600px;
+}
+
+@media (max-width: 700px) {
+  .layout { grid-template-columns: 1fr; }
+}
+
+/* ── Left sidebar ── */
+.sidebar {
+  background: var(--card-bg);
+  border-right: 1px solid var(--border);
+  padding: 2rem 1.8rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.avatar {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--primary);
+  margin-bottom: 0.4rem;
+}
+
+.coachName {
+  font-size: 0.85rem;
+  color: #888;
+  margin-bottom: 0.2rem;
+}
+
+.sessionTitle {
+  font-size: 1.3rem;
+  font-weight: normal;
+  color: var(--text);
+  line-height: 1.4;
+  margin-bottom: 0.5rem;
+}
+
+.sessionDesc {
+  font-size: 0.88rem;
+  color: #666;
+  line-height: 1.7;
+  margin-bottom: 1rem;
+}
+
+.metaList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  border-top: 1px solid var(--border);
+  padding-top: 1.2rem;
+}
+
+.metaItem {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  font-size: 0.88rem;
+  color: var(--text);
+}
+
+.metaIcon {
+  font-size: 1rem;
+  width: 20px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+/* ── Right main panel ── */
+.main {
+  padding: 2rem 2.2rem;
+  background: var(--white);
+}
+
+.panelTitle {
+  font-size: 1.15rem;
+  font-weight: normal;
+  color: var(--text);
+  margin-bottom: 1.5rem;
+}
+
+/* Calendar overrides */
+:global(.react-calendar) {
+  border: 1px solid var(--border) !important;
+  border-radius: 8px !important;
+  font-family: 'Georgia', serif !important;
+  background: var(--white) !important;
+  width: 100% !important;
+  max-width: 380px !important;
+}
+
+:global(.react-calendar__tile--active) {
+  background: var(--primary) !important;
+  color: white !important;
+  border-radius: 6px !important;
+}
+
+:global(.react-calendar__tile:disabled) {
+  background: #f9f7f4 !important;
+  color: #ccc !important;
+}
+
+:global(.react-calendar__tile:enabled:hover) {
+  background: var(--accent-light) !important;
+  border-radius: 6px !important;
+}
+
+:global(.react-calendar__navigation button:enabled:hover) {
+  background: var(--accent-light) !important;
+  border-radius: 6px !important;
+}
+
+/* Slots */
+.slotsSection {
+  margin-top: 1.8rem;
+}
+
+.slotsTitle {
+  font-size: 0.95rem;
+  font-weight: normal;
+  color: var(--text);
+  margin-bottom: 1rem;
+}
+
+.slots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-bottom: 1.5rem;
+}
+
+.slotBtn {
+  border: 1px solid var(--border);
+  background: var(--white);
+  color: var(--text);
+  padding: 0.55rem 1.1rem;
+  border-radius: 6px;
+  font-size: 0.88rem;
+  transition: all 0.15s;
+  min-width: 90px;
+}
+.slotBtn:hover { border-color: var(--primary); color: var(--primary); }
+.slotSelected {
+  background: var(--primary) !important;
+  color: white !important;
+  border-color: var(--primary) !important;
+}
+
+.noSlots {
+  color: #aaa;
+  font-style: italic;
+  font-size: 0.88rem;
+}
+
+.continueBtn {
+  background: var(--primary);
+  color: white;
+  border: none;
+  padding: 0.75rem 2.2rem;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  transition: background 0.2s;
+  margin-top: 0.5rem;
+}
+.continueBtn:hover:not(:disabled) { background: var(--primary-hover); }
+.continueBtn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* Form */
+.backLink {
+  background: none;
+  border: none;
+  color: var(--primary);
+  font-size: 0.88rem;
+  padding: 0;
+  cursor: pointer;
+  margin-bottom: 1.2rem;
+  display: block;
+}
+.backLink:hover { text-decoration: underline; }
+
+.selectedSlotBanner {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  background: #f0ebe4;
+  border-left: 3px solid var(--primary);
+  padding: 0.7rem 1rem;
+  border-radius: 0 6px 6px 0;
+  font-size: 0.9rem;
+  margin-bottom: 1.5rem;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  max-width: 480px;
+}
+
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  font-size: 0.88rem;
+  color: #555;
+}
+
+input, textarea {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.6rem 0.9rem;
+  font-size: 0.92rem;
+  background: var(--white);
+  color: var(--text);
+  resize: vertical;
+  transition: border-color 0.15s;
+}
+input:focus, textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+.error {
+  color: var(--error);
+  font-size: 0.88rem;
+}
+
+/* Checkboxes */
+.checkboxGroup, .scaleGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.checkboxLabel {
+  font-size: 0.88rem;
+  color: #555;
+}
+
+.checkboxGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+
+.checkboxItem {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.88rem;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.checkboxItem input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+
+/* Slider */
+.slider {
+  width: 100%;
+  accent-color: var(--primary);
+  height: 4px;
+  cursor: pointer;
+}
+
+.scaleLabels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  color: #aaa;
+}

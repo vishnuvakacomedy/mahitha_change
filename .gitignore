@@ -1,0 +1,13 @@
+venv/
+__pycache__/
+*.pyc
+.env
+backend/.env
+frontend/.env
+frontend/node_modules/
+frontend/dist/
+*.json
+!package.json
+!package-lock.json
+!firebase.json
+serviceAccount.json
