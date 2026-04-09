@@ -36,7 +36,7 @@ export default function LandingPage() {
           )}
         </div>
         <div className={styles.heroImage}>
-          <img src="/imgs/mahitha.avif" alt="Mahitha Vaka" />
+          <img src="/imgs/mahitha.jpg" alt="Mahitha Vaka" />
         </div>
       </header>
 

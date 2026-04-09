@@ -81,7 +81,7 @@ export default function BookingPage() {
     }
   }
 
-  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone
+  const timezone = 'Eastern Time (EST)'
 
   return (
     <div className={styles.page}>

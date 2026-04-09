@@ -32,10 +32,12 @@ for s in sessions:
 print(f"  Added {len(sessions)} session(s)")
 
 # ── Availability slots ───────────────────────────────────────────────────────
-TIMEZONE = pytz.timezone("America/Chicago")
-SLOT_HOURS = [9, 10, 11, 13, 14, 15, 16]   # skip noon
+TIMEZONE = pytz.timezone("America/New_York")
+WEEKDAY_HOURS = [17, 18, 19, 20]      # Mon–Fri: 5pm–9pm (last slot starts 8pm)
+WEEKEND_HOURS = [9, 10, 11, 12, 13, 14, 15, 16]  # Sat–Sun: 9am–5pm
 DAYS_AHEAD = 30
-WEEKDAYS = {0, 1, 2, 3, 4}  # Mon–Fri
+WEEKDAYS = {0, 1, 2, 3, 4}   # Mon–Fri
+WEEKENDS = {5, 6}             # Sat–Sun
 
 print("Seeding availability slots...")
 count = 0
@@ -43,15 +45,20 @@ today = datetime.now(TIMEZONE).date()
 
 for day_offset in range(1, DAYS_AHEAD + 1):
     day = today + timedelta(days=day_offset)
-    if day.weekday() not in WEEKDAYS:
+    weekday = day.weekday()
+    if weekday in WEEKDAYS:
+        hours = WEEKDAY_HOURS
+    elif weekday in WEEKENDS:
+        hours = WEEKEND_HOURS
+    else:
         continue
-    for hour in SLOT_HOURS:
+    for hour in hours:
         dt_local = TIMEZONE.localize(datetime(day.year, day.month, day.day, hour, 0, 0))
         dt_utc = dt_local.astimezone(timezone.utc)
         db.collection("availability").add({
-            "date": day.isoformat(),          # "2025-04-01"
-            "datetime": dt_utc.isoformat(),   # ISO UTC string
-            "timezone": "America/Chicago",
+            "date": day.isoformat(),
+            "datetime": dt_utc.isoformat(),
+            "timezone": "America/New_York",
             "booked": False,
         })
         count += 1

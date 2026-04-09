@@ -1,11 +1,13 @@
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from pydantic import BaseModel, EmailStr
 from google.cloud import firestore
 from datetime import datetime, timezone
 import os
+import secrets
 import stripe
 from pathlib import Path
 from dotenv import load_dotenv
@@ -16,6 +18,19 @@ load_dotenv()
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
 STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET")
 APP_URL = os.getenv("APP_URL", "http://localhost:5173")
+ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "mahitha")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "changeme")
+
+security = HTTPBasic()
+
+def require_admin(credentials: HTTPBasicCredentials = Depends(security)):
+    ok = (
+        secrets.compare_digest(credentials.username, ADMIN_USERNAME) and
+        secrets.compare_digest(credentials.password, ADMIN_PASSWORD)
+    )
+    if not ok:
+        raise HTTPException(status_code=401, detail="Unauthorized",
+                            headers={"WWW-Authenticate": "Basic"})
 
 app = FastAPI(title="Mahitha Vaka Booking API")
 
@@ -204,6 +219,66 @@ def get_booking_by_stripe_session(stripe_session_id: str):
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+# ── Admin routes (password protected) ────────────────────────────────────────
+
+class SlotRequest(BaseModel):
+    date: str       # YYYY-MM-DD
+    hour: int       # 0-23
+
+@app.get("/admin/bookings")
+def admin_get_bookings(_=Depends(require_admin)):
+    """List all confirmed bookings."""
+    docs = db.collection("bookings").order_by("slot_datetime").stream()
+    return [{"id": doc.id, **doc.to_dict()} for doc in docs]
+
+@app.get("/admin/slots")
+def admin_get_slots(_=Depends(require_admin)):
+    """List all availability slots (booked and unbooked)."""
+    docs = db.collection("availability").order_by("datetime").stream()
+    return [{"id": doc.id, **doc.to_dict()} for doc in docs]
+
+@app.post("/admin/slots")
+def admin_add_slot(req: SlotRequest, _=Depends(require_admin)):
+    """Add a single availability slot."""
+    import pytz
+    tz = pytz.timezone("America/New_York")
+    parts = req.date.split("-")
+    dt_local = tz.localize(datetime(int(parts[0]), int(parts[1]), int(parts[2]), req.hour, 0, 0))
+    dt_utc = dt_local.astimezone(timezone.utc)
+    ref = db.collection("availability").add({
+        "date": req.date,
+        "datetime": dt_utc.isoformat(),
+        "timezone": "America/New_York",
+        "booked": False,
+    })
+    return {"id": ref[1].id, "date": req.date, "hour": req.hour}
+
+@app.delete("/admin/slots/{slot_id}")
+def admin_delete_slot(slot_id: str, _=Depends(require_admin)):
+    """Remove an availability slot (only if not booked)."""
+    ref = db.collection("availability").document(slot_id)
+    slot = ref.get()
+    if not slot.exists:
+        raise HTTPException(status_code=404, detail="Slot not found")
+    if slot.to_dict().get("booked"):
+        raise HTTPException(status_code=400, detail="Cannot delete a booked slot")
+    ref.delete()
+    return {"status": "deleted"}
+
+@app.delete("/admin/bookings/{booking_id}")
+def admin_cancel_booking(booking_id: str, _=Depends(require_admin)):
+    """Cancel a booking and free up the slot."""
+    booking_ref = db.collection("bookings").document(booking_id)
+    booking = booking_ref.get()
+    if not booking.exists:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    data = booking.to_dict()
+    # Free the slot
+    db.collection("availability").document(data["slot_id"]).update({"booked": False})
+    booking_ref.update({"status": "cancelled"})
+    return {"status": "cancelled"}
 
 
 # ── Serve React frontend ──────────────────────────────────────────────────────
