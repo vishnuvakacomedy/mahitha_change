@@ -8,7 +8,7 @@ from google.cloud import firestore
 from datetime import datetime, timedelta, timezone
 import pytz
 
-db = firestore.Client()
+db = firestore.Client(project="mahitha-booking")
 
 # ── Session types ────────────────────────────────────────────────────────────
 sessions = [

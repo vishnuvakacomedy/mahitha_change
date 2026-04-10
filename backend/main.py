@@ -42,7 +42,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-db = firestore.Client()
+db = firestore.Client(project=os.getenv("GCP_PROJECT", "mahitha-booking"))
 
 
 # ── Models ───────────────────────────────────────────────────────────────────
@@ -285,6 +285,8 @@ def admin_cancel_booking(booking_id: str, _=Depends(require_admin)):
 STATIC_DIR = Path(__file__).parent / "static"
 if STATIC_DIR.exists():
     app.mount("/assets", StaticFiles(directory=STATIC_DIR / "assets"), name="assets")
+    if (STATIC_DIR / "imgs").exists():
+        app.mount("/imgs", StaticFiles(directory=STATIC_DIR / "imgs"), name="imgs")
 
     @app.get("/{full_path:path}")
     def serve_frontend(full_path: str):
