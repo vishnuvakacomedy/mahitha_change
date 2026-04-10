@@ -81,7 +81,7 @@ export default function BookingPage() {
     }
   }
 
-  const timezone = 'Eastern Time (EST)'
+  const timezone = 'Eastern Standard Time (EST · UTC-5)'
 
   return (
     <div className={styles.page}>
@@ -140,6 +140,7 @@ export default function BookingPage() {
                   <h3 className={styles.slotsTitle}>
                     {format(selectedDate, 'EEEE, MMMM d')}
                   </h3>
+                  <p className={styles.tzNote}>All times in Eastern Standard Time (EST)</p>
                   {slotsForDate.length === 0 ? (
                     <p className={styles.noSlots}>No available times on this day.</p>
                   ) : (
