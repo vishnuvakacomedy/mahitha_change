@@ -52,8 +52,8 @@ images:
 substitutions:
   _SERVICE: 'mahitha-booking-api'
   _REGION: 'us-east4'
-  _IMAGE: 'us-east4-docker.pkg.dev/$PROJECT_ID/mahitha-booking/mahitha-booking-api'
-  _SERVICE_ACCOUNT: 'mahitha-booking-api@$PROJECT_ID.iam.gserviceaccount.com'
+  _IMAGE: 'us-east4-docker.pkg.dev/mahitha-booking/mahitha-booking/mahitha-booking-api'
+  _SERVICE_ACCOUNT: 'mahitha-booking-api@mahitha-booking.iam.gserviceaccount.com'
 
 options:
   logging: CLOUD_LOGGING_ONLY
