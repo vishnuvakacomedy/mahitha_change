@@ -1,39 +1,53 @@
 """
-Email notifications via SendGrid.
-Set SENDGRID_API_KEY and SENDER_EMAIL in your .env file.
+Email notifications via Gmail SMTP + App Password.
+Set GMAIL_USER and GMAIL_APP_PASSWORD in your environment.
 """
 import html
 import logging
 import os
+import smtplib
+import ssl
 from datetime import datetime
+from email.message import EmailMessage
+from email.utils import formataddr
 from zoneinfo import ZoneInfo
-
-from sendgrid import SendGridAPIClient
-from sendgrid.helpers.mail import Mail
 
 log = logging.getLogger(__name__)
 
-SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY")
-SENDER_EMAIL = os.getenv("SENDER_EMAIL", "noreply@mahithavaka.com")
+GMAIL_USER = os.getenv("GMAIL_USER")
+GMAIL_APP_PASSWORD = os.getenv("GMAIL_APP_PASSWORD")
 SENDER_NAME = "Mahitha Vaka"
+
+SMTP_HOST = "smtp.gmail.com"
+SMTP_PORT = 587
+SMTP_TIMEOUT = 15  # seconds
 
 DISPLAY_TZ = ZoneInfo("America/New_York")
 
 
 def _send(to_email: str, subject: str, html_body: str):
-    """Send an email via SendGrid. Silently logs on failure."""
-    if not SENDGRID_API_KEY:
-        log.warning("SENDGRID_API_KEY not set — skipping email to %s", to_email)
-        return
-    try:
-        message = Mail(
-            from_email=(SENDER_EMAIL, SENDER_NAME),
-            to_emails=to_email,
-            subject=subject,
-            html_content=html_body,
+    """Send an email via Gmail SMTP. Logs and swallows errors so one failed
+    send never breaks the booking flow."""
+    if not GMAIL_USER or not GMAIL_APP_PASSWORD:
+        log.warning(
+            "GMAIL_USER/GMAIL_APP_PASSWORD not set — skipping email to %s", to_email
         )
-        sg = SendGridAPIClient(SENDGRID_API_KEY)
-        sg.send(message)
+        return
+
+    msg = EmailMessage()
+    msg["Subject"] = subject
+    msg["From"] = formataddr((SENDER_NAME, GMAIL_USER))
+    msg["To"] = to_email
+    # Plain-text fallback for clients that don't render HTML.
+    msg.set_content("This email is best viewed in an HTML-capable client.")
+    msg.add_alternative(html_body, subtype="html")
+
+    try:
+        context = ssl.create_default_context()
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=SMTP_TIMEOUT) as smtp:
+            smtp.starttls(context=context)
+            smtp.login(GMAIL_USER, GMAIL_APP_PASSWORD)
+            smtp.send_message(msg)
         log.info("Sent %r to %s", subject, to_email)
     except Exception:
         log.exception("Failed to send email to %s", to_email)
@@ -107,7 +121,11 @@ def send_host_notification(guest_name: str, guest_email: str, guest_phone: str,
                            goal: str, challenge: str,
                            slot_datetime: str, booking_id: str):
     """Notify Mahitha when someone books a session."""
-    host_email = os.getenv("HOST_EMAIL", SENDER_EMAIL)
+    host_email = os.getenv("HOST_EMAIL", GMAIL_USER or "")
+    if not host_email:
+        log.warning("No HOST_EMAIL or GMAIL_USER set — skipping host notification")
+        return
+
     formatted_dt = _e(_format_dt(slot_datetime))
     safe_name = _e(guest_name)
     safe_email = _e(guest_email)
