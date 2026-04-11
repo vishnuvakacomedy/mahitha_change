@@ -1,4 +1,5 @@
 venv/
+.venv/
 __pycache__/
 *.pyc
 .env
@@ -11,3 +12,5 @@ frontend/dist/
 !package-lock.json
 !firebase.json
 serviceAccount.json
+.DS_Store
+**/.DS_Store

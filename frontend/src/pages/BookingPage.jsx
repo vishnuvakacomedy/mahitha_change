@@ -1,10 +1,23 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { format, parseISO, isSameDay } from 'date-fns'
 import Calendar from 'react-calendar'
 import 'react-calendar/dist/Calendar.css'
-import { getSessions, getAvailability, createCheckoutSession } from '../api'
+import {
+  getSessions,
+  getAvailability,
+  createCheckoutSession,
+  etDateKey,
+  localDateKey,
+  etTime,
+  weekdayMonthDay,
+  etLongDateTime,
+} from '../api'
 import styles from './BookingPage.module.css'
+
+const GOAL_OPTIONS = [
+  'Career clarity', 'Life decisions', 'Overthinking', 'Relationships',
+  'Self-confidence', 'Work-life balance', 'Purpose & direction', 'Other',
+]
 
 export default function BookingPage() {
   const { sessionId } = useParams()
@@ -16,12 +29,8 @@ export default function BookingPage() {
   const [selectedSlot, setSelectedSlot] = useState(null)
   const [showForm, setShowForm] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [loadError, setLoadError] = useState('')
   const [error, setError] = useState('')
-
-  const GOAL_OPTIONS = [
-    'Career clarity', 'Life decisions', 'Overthinking', 'Relationships',
-    'Self-confidence', 'Work-life balance', 'Purpose & direction', 'Other'
-  ]
 
   const [form, setForm] = useState({
     name: '', email: '', phone: '',
@@ -41,19 +50,31 @@ export default function BookingPage() {
   }
 
   useEffect(() => {
-    getSessions().then(list => setSession(list.find(s => s.id === sessionId) || null))
-    getAvailability().then(setSlots)
+    let cancelled = false
+    setLoadError('')
+    Promise.all([getSessions(), getAvailability()])
+      .then(([list, availability]) => {
+        if (cancelled) return
+        setSession(list.find(s => s.id === sessionId) || null)
+        setSlots(availability)
+      })
+      .catch(() => {
+        if (!cancelled) setLoadError("We couldn't load availability. Please refresh and try again.")
+      })
+    return () => { cancelled = true }
   }, [sessionId])
 
-  const availableDates = slots.map(s => parseISO(s.datetime))
-
-  const slotsForDate = selectedDate
-    ? slots.filter(s => isSameDay(parseISO(s.datetime), selectedDate))
+  // Pre-compute the set of ET calendar-day keys that have available slots,
+  // so tile lookup is O(1) and uses Eastern Time (not the viewer's local tz).
+  const availableDays = new Set(slots.map(s => etDateKey(s.datetime)))
+  const selectedKey = selectedDate ? localDateKey(selectedDate) : null
+  const slotsForDate = selectedKey
+    ? slots.filter(s => etDateKey(s.datetime) === selectedKey)
     : []
 
   function tileDisabled({ date, view }) {
     if (view !== 'month') return false
-    return !availableDates.some(d => isSameDay(d, date))
+    return !availableDays.has(localDateKey(date))
   }
 
   function handleFormChange(e) {
@@ -62,6 +83,10 @@ export default function BookingPage() {
 
   async function handleSubmit(e) {
     e.preventDefault()
+    if (form.goals.length === 0) {
+      setError('Please choose at least one area you want clarity on.')
+      return
+    }
     setLoading(true)
     setError('')
     try {
@@ -70,8 +95,10 @@ export default function BookingPage() {
         name: form.name,
         email: form.email,
         phone: form.phone,
-        goal: form.goals.join(', '),
-        challenge: `Emotional state: ${form.emotional_state}\n\nLife impact: ${form.life_impact}\n\nCommitment: ${form.commitment}/10`,
+        emotional_state: form.emotional_state,
+        life_impact: form.life_impact,
+        goals: form.goals,
+        commitment: form.commitment,
       })
       window.location.href = result.checkout_url
     } catch (err) {
@@ -81,7 +108,7 @@ export default function BookingPage() {
     }
   }
 
-  const timezone = 'Eastern Standard Time (EST · UTC-5)'
+  const timezone = 'Eastern Time (ET)'
 
   return (
     <div className={styles.page}>
@@ -124,6 +151,8 @@ export default function BookingPage() {
         {/* ── Right Panel ── */}
         <main className={styles.main}>
 
+          {loadError && <p className={styles.error}>{loadError}</p>}
+
           {!showForm ? (
             <>
               <h2 className={styles.panelTitle}>Select a Date &amp; Time</h2>
@@ -138,9 +167,9 @@ export default function BookingPage() {
               {selectedDate && (
                 <div className={styles.slotsSection}>
                   <h3 className={styles.slotsTitle}>
-                    {format(selectedDate, 'EEEE, MMMM d')}
+                    {weekdayMonthDay(selectedDate)}
                   </h3>
-                  <p className={styles.tzNote}>All times in Eastern Standard Time (EST)</p>
+                  <p className={styles.tzNote}>All times in Eastern Time</p>
                   {slotsForDate.length === 0 ? (
                     <p className={styles.noSlots}>No available times on this day.</p>
                   ) : (
@@ -151,7 +180,7 @@ export default function BookingPage() {
                           className={`${styles.slotBtn} ${selectedSlot?.id === slot.id ? styles.slotSelected : ''}`}
                           onClick={() => setSelectedSlot(slot)}
                         >
-                          {format(parseISO(slot.datetime), 'h:mm a')}
+                          {etTime(slot.datetime)}
                         </button>
                       ))}
                     </div>
@@ -173,7 +202,7 @@ export default function BookingPage() {
 
               <div className={styles.selectedSlotBanner}>
                 <span className={styles.metaIcon}>📅</span>
-                <strong>{format(parseISO(selectedSlot.datetime), 'EEEE, MMMM d, yyyy · h:mm a')}</strong>
+                <strong>{etLongDateTime(selectedSlot.datetime)}</strong>
               </div>
 
               <h2 className={styles.panelTitle}>Your Details</h2>

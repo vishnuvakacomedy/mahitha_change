@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { format, parseISO } from 'date-fns'
-import { getBookingByStripeSession } from '../api'
+import { getBookingByStripeSession, etLongDateTime } from '../api'
 import styles from './ConfirmPage.module.css'
+
+// Poll for ~45 seconds total: Stripe webhooks can take a while under load.
+const POLL_INTERVAL_MS = 2000
+const MAX_ATTEMPTS = 22
 
 export default function ConfirmPage() {
   const [searchParams] = useSearchParams()
@@ -11,26 +14,36 @@ export default function ConfirmPage() {
 
   const [booking, setBooking] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [failed, setFailed] = useState(false)
+  const [stillWaiting, setStillWaiting] = useState(false)
 
   useEffect(() => {
-    if (!stripeSessionId) { setLoading(false); return }
+    if (!stripeSessionId) {
+      setLoading(false)
+      return
+    }
     let attempts = 0
+    let cancelled = false
+
     const poll = setInterval(async () => {
+      if (cancelled) return
       try {
         const data = await getBookingByStripeSession(stripeSessionId)
+        if (cancelled) return
         setBooking(data)
-        clearInterval(poll)
         setLoading(false)
+        clearInterval(poll)
       } catch {
-        if (++attempts >= 8) {
+        if (++attempts >= MAX_ATTEMPTS) {
           clearInterval(poll)
-          setLoading(false)
-          setFailed(true)
+          if (!cancelled) {
+            setLoading(false)
+            setStillWaiting(true)
+          }
         }
       }
-    }, 2000)
-    return () => clearInterval(poll)
+    }, POLL_INTERVAL_MS)
+
+    return () => { cancelled = true; clearInterval(poll) }
   }, [stripeSessionId])
 
   if (loading) {
@@ -61,7 +74,7 @@ export default function ConfirmPage() {
             </div>
             <div className={styles.row}>
               <span>Date &amp; Time</span>
-              <strong>{format(parseISO(booking.slot_datetime), 'EEEE, MMMM d, yyyy · h:mm a')}</strong>
+              <strong>{etLongDateTime(booking.slot_datetime)}</strong>
             </div>
             <div className={styles.row}>
               <span>Name</span>
@@ -78,9 +91,10 @@ export default function ConfirmPage() {
           </div>
         )}
 
-        {failed && (
+        {stillWaiting && (
           <p className={styles.notice}>
-            Your payment was received. If you don't receive a confirmation email within a few minutes, contact mahitha@mahithavaka.com.
+            We received your payment. Your confirmation email will arrive shortly — if you don't
+            see it within a few minutes, contact mahitha@mahithavaka.com.
           </p>
         )}
 

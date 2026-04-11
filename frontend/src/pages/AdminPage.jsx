@@ -1,13 +1,13 @@
-import { useEffect, useState } from 'react'
-import { format, parseISO } from 'date-fns'
-import axios from 'axios'
+import { useState } from 'react'
+import {
+  adminGetBookings,
+  adminGetSlots,
+  adminAddSlot,
+  adminDeleteSlot,
+  adminCancelBooking,
+  etLongDateTime,
+} from '../api'
 import styles from './AdminPage.module.css'
-
-const api = axios.create({ baseURL: '' })
-
-function withAuth(username, password) {
-  return { auth: { username, password } }
-}
 
 export default function AdminPage() {
   const [creds, setCreds] = useState({ username: '', password: '' })
@@ -19,33 +19,37 @@ export default function AdminPage() {
   const [newSlot, setNewSlot] = useState({ date: '', hour: 17 })
   const [message, setMessage] = useState('')
 
-  async function login(e) {
-    e.preventDefault()
-    try {
-      await api.get('/admin/bookings', withAuth(creds.username, creds.password))
-      setAuthed(true)
-      setAuthError('')
-      loadData(creds.username, creds.password)
-    } catch {
-      setAuthError('Invalid username or password')
-    }
-  }
-
-  async function loadData(u, p) {
+  async function loadData() {
     const [b, s] = await Promise.all([
-      api.get('/admin/bookings', withAuth(u || creds.username, p || creds.password)).then(r => r.data),
-      api.get('/admin/slots', withAuth(u || creds.username, p || creds.password)).then(r => r.data),
+      adminGetBookings(creds.username, creds.password),
+      adminGetSlots(creds.username, creds.password),
     ])
     setBookings(b)
     setSlots(s)
   }
 
+  async function login(e) {
+    e.preventDefault()
+    try {
+      const [b, s] = await Promise.all([
+        adminGetBookings(creds.username, creds.password),
+        adminGetSlots(creds.username, creds.password),
+      ])
+      setBookings(b)
+      setSlots(s)
+      setAuthed(true)
+      setAuthError('')
+    } catch {
+      setAuthError('Invalid username or password')
+    }
+  }
+
   async function addSlot(e) {
     e.preventDefault()
     try {
-      await api.post('/admin/slots', newSlot, withAuth(creds.username, creds.password))
+      await adminAddSlot(newSlot, creds.username, creds.password)
       setMessage('Slot added!')
-      loadData()
+      await loadData()
     } catch (err) {
       setMessage(err.response?.data?.detail || 'Error adding slot')
     }
@@ -55,9 +59,9 @@ export default function AdminPage() {
   async function deleteSlot(id) {
     if (!confirm('Remove this slot?')) return
     try {
-      await api.delete(`/admin/slots/${id}`, withAuth(creds.username, creds.password))
+      await adminDeleteSlot(id, creds.username, creds.password)
       setMessage('Slot removed')
-      loadData()
+      await loadData()
     } catch (err) {
       setMessage(err.response?.data?.detail || 'Error removing slot')
     }
@@ -67,9 +71,9 @@ export default function AdminPage() {
   async function cancelBooking(id) {
     if (!confirm('Cancel this booking? The slot will be freed up.')) return
     try {
-      await api.delete(`/admin/bookings/${id}`, withAuth(creds.username, creds.password))
+      await adminCancelBooking(id, creds.username, creds.password)
       setMessage('Booking cancelled')
-      loadData()
+      await loadData()
     } catch (err) {
       setMessage(err.response?.data?.detail || 'Error cancelling booking')
     }
@@ -129,7 +133,7 @@ export default function AdminPage() {
             <table className={styles.table}>
               <thead>
                 <tr>
-                  <th>Date & Time (EST)</th>
+                  <th>Date & Time (ET)</th>
                   <th>Name</th>
                   <th>Email</th>
                   <th>Phone</th>
@@ -140,7 +144,7 @@ export default function AdminPage() {
               <tbody>
                 {upcomingBookings.map(b => (
                   <tr key={b.id}>
-                    <td>{format(parseISO(b.slot_datetime), 'MMM d, yyyy · h:mm a')}</td>
+                    <td>{etLongDateTime(b.slot_datetime)}</td>
                     <td>{b.name}</td>
                     <td><a href={`mailto:${b.email}`}>{b.email}</a></td>
                     <td>{b.phone || '—'}</td>
@@ -166,7 +170,7 @@ export default function AdminPage() {
                 <input type="date" value={newSlot.date}
                   onChange={e => setNewSlot(s => ({ ...s, date: e.target.value }))} required />
               </label>
-              <label>Hour (EST)
+              <label>Hour (ET)
                 <select value={newSlot.hour} onChange={e => setNewSlot(s => ({ ...s, hour: Number(e.target.value) }))}>
                   {Array.from({ length: 24 }, (_, i) => (
                     <option key={i} value={i}>
@@ -185,12 +189,12 @@ export default function AdminPage() {
           ) : (
             <table className={styles.table}>
               <thead>
-                <tr><th>Date & Time (EST)</th><th></th></tr>
+                <tr><th>Date & Time (ET)</th><th></th></tr>
               </thead>
               <tbody>
                 {availableSlots.map(s => (
                   <tr key={s.id}>
-                    <td>{format(parseISO(s.datetime), 'EEEE, MMM d, yyyy · h:mm a')}</td>
+                    <td>{etLongDateTime(s.datetime)}</td>
                     <td>
                       <button className={styles.btnDanger} onClick={() => deleteSlot(s.id)}>Remove</button>
                     </td>
