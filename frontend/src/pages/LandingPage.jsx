@@ -31,7 +31,7 @@ export default function LandingPage() {
               className={styles.ctaBtn}
               onClick={() => navigate(`/book/${sessions[0].id}`)}
             >
-              Book Your Session
+              Schedule Your Session →
             </button>
           )}
         </div>
