@@ -31,7 +31,7 @@ export default function LandingPage() {
               className={styles.ctaBtn}
               onClick={() => navigate(`/book/${sessions[0].id}`)}
             >
-              Schedule Your Session →
+              Schedule your Session →
             </button>
           )}
         </div>
@@ -140,7 +140,7 @@ export default function LandingPage() {
                 className={styles.ctaBtn}
                 onClick={() => navigate(`/book/${sessions[0].id}`)}
               >
-                Schedule Your Session →
+                Schedule your Session →
               </button>
             )}
           </div>
