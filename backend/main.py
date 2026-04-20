@@ -214,7 +214,9 @@ async def stripe_webhook(request: Request):
 
     session = event["data"]["object"]
     stripe_session_id = session["id"]
-    pending_id = (session.get("metadata") or {}).get("pending_id")
+    # Stripe SDK v15 dropped dict.get() on StripeObject — use attribute access.
+    metadata = getattr(session, "metadata", None)
+    pending_id = getattr(metadata, "pending_id", None) if metadata else None
     if not pending_id:
         return {"status": "ignored"}
 
