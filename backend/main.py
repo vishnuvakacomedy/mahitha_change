@@ -16,7 +16,11 @@ from fastapi.staticfiles import StaticFiles
 from google.cloud import firestore
 from pydantic import BaseModel, EmailStr, Field
 
-from email_service import send_booking_confirmation, send_host_notification
+from email_service import (
+    send_booking_confirmation,
+    send_host_lead_notification,
+    send_host_notification,
+)
 
 load_dotenv()
 
@@ -164,6 +168,17 @@ def create_checkout_session(req: CheckoutRequest):
 
     pending_ref = db.collection("pending_bookings").add(_pending_payload(req, slot_datetime))
     pending_id = pending_ref[1].id
+
+    # Notify host of the lead immediately so they see it even if payment is abandoned.
+    send_host_lead_notification(
+        req.name,
+        req.email,
+        req.phone,
+        _format_goal(req),
+        _format_challenge(req),
+        slot_datetime,
+        pending_id,
+    )
 
     try:
         checkout = stripe.checkout.Session.create(

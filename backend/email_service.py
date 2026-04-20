@@ -117,6 +117,75 @@ def send_booking_confirmation(name: str, email: str, slot_datetime: str, booking
     _send(email, subject, html_body)
 
 
+def send_host_lead_notification(guest_name: str, guest_email: str, guest_phone: str,
+                                goal: str, challenge: str,
+                                slot_datetime: str, pending_id: str):
+    """Notify Mahitha when someone submits the form, before payment is confirmed.
+    A separate "New Session Booked" email follows if/when payment goes through."""
+    host_email = os.getenv("HOST_EMAIL", GMAIL_USER or "")
+    if not host_email:
+        log.warning("No HOST_EMAIL or GMAIL_USER set — skipping host lead notification")
+        return
+
+    formatted_dt = _e(_format_dt(slot_datetime))
+    safe_name = _e(guest_name)
+    safe_email = _e(guest_email)
+    safe_phone = _e(guest_phone) if guest_phone else "—"
+    safe_goal = _e(goal).replace("\n", "<br/>")
+    safe_challenge = _e(challenge).replace("\n", "<br/>")
+    safe_pending_id = _e(pending_id)
+
+    subject = f"Form Started: {guest_name} — {_format_dt(slot_datetime)}"
+    html_body = f"""
+    <div style="font-family: Georgia, serif; max-width: 560px; margin: 0 auto; color: #2C2C2C;">
+      <div style="background: #C9A87A; padding: 20px 32px; border-radius: 8px 8px 0 0;">
+        <h1 style="color: white; font-weight: normal; font-size: 20px; margin: 0;">
+          Booking Form Started
+        </h1>
+      </div>
+      <div style="background: #faf7f2; padding: 28px 32px; border: 1px solid #ddd8ce;
+                  border-top: none; border-radius: 0 0 8px 8px;">
+        <p style="background: #fff8e8; border-left: 3px solid #C9A87A; padding: 10px 14px;
+                  margin: 0 0 20px; font-size: 13px; color: #856700;">
+          A potential client filled out the booking form but has <strong>not yet completed payment</strong>.
+          You'll get a separate "New Session Booked" email if they finish paying.
+        </p>
+        <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+          <tr style="border-bottom: 1px solid #ddd8ce;">
+            <td style="padding: 10px 0; color: #888; width: 120px;">Date &amp; Time</td>
+            <td style="padding: 10px 0;"><strong>{formatted_dt}</strong></td>
+          </tr>
+          <tr style="border-bottom: 1px solid #ddd8ce;">
+            <td style="padding: 10px 0; color: #888;">Name</td>
+            <td style="padding: 10px 0;">{safe_name}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid #ddd8ce;">
+            <td style="padding: 10px 0; color: #888;">Email</td>
+            <td style="padding: 10px 0;"><a href="mailto:{safe_email}" style="color: #846754;">{safe_email}</a></td>
+          </tr>
+          <tr style="border-bottom: 1px solid #ddd8ce;">
+            <td style="padding: 10px 0; color: #888;">Phone</td>
+            <td style="padding: 10px 0;">{safe_phone}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid #ddd8ce;">
+            <td style="padding: 10px 0; color: #888; vertical-align: top;">Goal</td>
+            <td style="padding: 10px 0;">{safe_goal}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid #ddd8ce;">
+            <td style="padding: 10px 0; color: #888; vertical-align: top;">Challenge</td>
+            <td style="padding: 10px 0;">{safe_challenge}</td>
+          </tr>
+          <tr>
+            <td style="padding: 10px 0; color: #888;">Pending ID</td>
+            <td style="padding: 10px 0; font-size: 12px; color: #aaa;">{safe_pending_id}</td>
+          </tr>
+        </table>
+      </div>
+    </div>
+    """
+    _send(host_email, subject, html_body)
+
+
 def send_host_notification(guest_name: str, guest_email: str, guest_phone: str,
                            goal: str, challenge: str,
                            slot_datetime: str, booking_id: str):
