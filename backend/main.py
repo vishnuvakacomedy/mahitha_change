@@ -49,7 +49,7 @@ HOLD_TTL_MINUTES = 15
 
 # Business hours availability is kept topped up to, on a rolling basis.
 # See admin_top_up_availability — intended to be called on a schedule.
-AVAILABILITY_WINDOW_DAYS = 30
+AVAILABILITY_WINDOW_DAYS = 90
 WEEKDAY_HOURS = [17, 18, 19, 20]                 # Mon-Fri: 5pm-9pm (last slot starts 8pm)
 WEEKEND_HOURS = [9, 10, 11, 12, 13, 14, 15, 16]  # Sat-Sun: 9am-5pm (last slot starts 4pm)
 
