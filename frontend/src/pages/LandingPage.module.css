@@ -16,6 +16,18 @@
   border-bottom: 1px solid var(--border);
 }
 
+.heroImage img {
+  width: 100%;
+  max-width: 340px;
+  border-radius: 12px;
+  object-fit: cover;
+  aspect-ratio: 3/4;
+  display: block;
+}
+
+/* Base rules for .heroImage img must stay above these media queries —
+   equal-specificity rules resolve by source order, so a later base rule
+   silently wins over an earlier media override regardless of viewport. */
 @media (max-width: 800px) {
   .hero {
     grid-template-columns: 1fr;
@@ -82,15 +94,6 @@
 
 @media (max-width: 480px) {
   .ctaBtn { width: 100%; max-width: 320px; padding: 1rem 1.5rem; }
-}
-
-.heroImage img {
-  width: 100%;
-  max-width: 340px;
-  border-radius: 12px;
-  object-fit: cover;
-  aspect-ratio: 3/4;
-  display: block;
 }
 
 /* ── Sections ── */

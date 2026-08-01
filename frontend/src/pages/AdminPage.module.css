@@ -4,6 +4,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 1.5rem;
 }
 
 .loginCard {
@@ -16,6 +17,10 @@
   display: flex;
   flex-direction: column;
   gap: 1rem;
+}
+
+@media (max-width: 480px) {
+  .loginCard { padding: 1.8rem 1.5rem; }
 }
 
 .loginCard h1 {
@@ -37,11 +42,14 @@
   padding: 1.2rem 2rem;
   background: var(--card-bg);
   border-bottom: 1px solid var(--border);
+  gap: 1rem;
+  flex-wrap: wrap;
 }
 
 .header h1 {
   font-size: 1.2rem;
   font-weight: normal;
+  margin: 0;
 }
 
 .tabs {
@@ -50,6 +58,7 @@
   border-bottom: 1px solid var(--border);
   padding: 0 2rem;
   background: var(--card-bg);
+  overflow-x: auto;
 }
 
 .tab {
@@ -61,6 +70,7 @@
   color: #888;
   cursor: pointer;
   margin-bottom: -1px;
+  white-space: nowrap;
 }
 
 .activeTab {
@@ -73,14 +83,35 @@
   max-width: 1000px;
 }
 
+@media (max-width: 640px) {
+  .header { padding: 1rem 1.2rem; }
+  .header h1 { font-size: 1.05rem; }
+  .tabs { padding: 0 1.2rem; }
+  .tab { padding: 0.8rem 1.1rem; font-size: 0.85rem; }
+  .section { padding: 1.2rem; }
+}
+
+.tableWrap {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow-x: auto;
+}
+
 .table {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.88rem;
   background: var(--card-bg);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  overflow: hidden;
+}
+
+/* Bookings table has 6 columns — force a legible min-width so the
+   wrapper scrolls instead of squashing columns unreadably narrow. */
+.tableBookings {
+  min-width: 640px;
+}
+
+@media (max-width: 640px) {
+  .table { font-size: 0.82rem; }
 }
 
 .table th {
@@ -132,6 +163,13 @@
   gap: 1rem;
   align-items: flex-end;
   flex-wrap: wrap;
+}
+
+@media (max-width: 640px) {
+  .addSlotForm { padding: 1.2rem; }
+  .addSlotRow { gap: 0.8rem; }
+  .addSlotRow label { flex: 1 1 140px; }
+  .addSlotRow > button { flex: 1 1 100%; }
 }
 
 .addSlotRow label {

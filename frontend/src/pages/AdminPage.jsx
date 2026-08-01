@@ -130,32 +130,34 @@ export default function AdminPage() {
           {upcomingBookings.length === 0 ? (
             <p className={styles.empty}>No upcoming bookings.</p>
           ) : (
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th>Date & Time (ET)</th>
-                  <th>Name</th>
-                  <th>Email</th>
-                  <th>Phone</th>
-                  <th>Goals</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {upcomingBookings.map(b => (
-                  <tr key={b.id}>
-                    <td>{etLongDateTime(b.slot_datetime)}</td>
-                    <td>{b.name}</td>
-                    <td><a href={`mailto:${b.email}`}>{b.email}</a></td>
-                    <td>{b.phone || '—'}</td>
-                    <td className={styles.goalCell}>{b.goal}</td>
-                    <td>
-                      <button className={styles.btnDanger} onClick={() => cancelBooking(b.id)}>Cancel</button>
-                    </td>
+            <div className={styles.tableWrap}>
+              <table className={`${styles.table} ${styles.tableBookings}`}>
+                <thead>
+                  <tr>
+                    <th>Date & Time (ET)</th>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Phone</th>
+                    <th>Goals</th>
+                    <th></th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {upcomingBookings.map(b => (
+                    <tr key={b.id}>
+                      <td>{etLongDateTime(b.slot_datetime)}</td>
+                      <td>{b.name}</td>
+                      <td><a href={`mailto:${b.email}`}>{b.email}</a></td>
+                      <td>{b.phone || '—'}</td>
+                      <td className={styles.goalCell}>{b.goal}</td>
+                      <td>
+                        <button className={styles.btnDanger} onClick={() => cancelBooking(b.id)}>Cancel</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       )}
@@ -187,21 +189,23 @@ export default function AdminPage() {
           {availableSlots.length === 0 ? (
             <p className={styles.empty}>No open slots available.</p>
           ) : (
-            <table className={styles.table}>
-              <thead>
-                <tr><th>Date & Time (ET)</th><th></th></tr>
-              </thead>
-              <tbody>
-                {availableSlots.map(s => (
-                  <tr key={s.id}>
-                    <td>{etLongDateTime(s.datetime)}</td>
-                    <td>
-                      <button className={styles.btnDanger} onClick={() => deleteSlot(s.id)}>Remove</button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div className={styles.tableWrap}>
+              <table className={styles.table}>
+                <thead>
+                  <tr><th>Date & Time (ET)</th><th></th></tr>
+                </thead>
+                <tbody>
+                  {availableSlots.map(s => (
+                    <tr key={s.id}>
+                      <td>{etLongDateTime(s.datetime)}</td>
+                      <td>
+                        <button className={styles.btnDanger} onClick={() => deleteSlot(s.id)}>Remove</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       )}

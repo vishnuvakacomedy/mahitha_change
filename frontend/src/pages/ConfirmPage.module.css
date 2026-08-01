@@ -18,6 +18,10 @@
   box-shadow: 0 4px 24px rgba(132, 103, 84, 0.08);
 }
 
+@media (max-width: 480px) {
+  .card { padding: 2rem 1.5rem; }
+}
+
 .checkmark {
   width: 64px;
   height: 64px;
@@ -62,7 +66,8 @@ h1 {
 }
 
 .row:last-child { border-bottom: none; }
-.row span { color: #888; }
+.row span { color: #888; flex-shrink: 0; }
+.row strong { text-align: right; word-break: break-word; overflow-wrap: anywhere; }
 
 .bookingId {
   font-size: 0.75rem;

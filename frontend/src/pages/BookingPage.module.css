@@ -6,6 +6,10 @@
   margin: 0 auto;
 }
 
+@media (max-width: 480px) {
+  .page { padding: 1rem 1rem 2rem; }
+}
+
 .back {
   background: none;
   border: none;
@@ -31,7 +35,7 @@
 }
 
 @media (max-width: 700px) {
-  .layout { grid-template-columns: 1fr; }
+  .layout { grid-template-columns: 1fr; min-height: auto; }
 }
 
 /* ── Left sidebar ── */
@@ -42,6 +46,10 @@
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
+}
+
+@media (max-width: 480px) {
+  .sidebar { padding: 1.5rem 1.3rem; }
 }
 
 .avatar {
@@ -101,6 +109,10 @@
 .main {
   padding: 2rem 2.2rem;
   background: var(--white);
+}
+
+@media (max-width: 480px) {
+  .main { padding: 1.5rem 1.3rem; }
 }
 
 .panelTitle {
@@ -281,8 +293,13 @@ input:focus, textarea:focus {
   gap: 0.5rem;
 }
 
+@media (max-width: 400px) {
+  .checkboxGrid { grid-template-columns: 1fr; }
+}
+
 .checkboxItem {
   display: flex;
+  flex-direction: row;
   align-items: center;
   gap: 0.5rem;
   font-size: 0.88rem;
