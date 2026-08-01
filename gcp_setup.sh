@@ -16,13 +16,13 @@ set -e
 
 PROJECT_ID="${1:?Usage: ./gcp_setup.sh <GCP_PROJECT_ID> <YOUR_EMAIL>}"
 OWNER_EMAIL="${2:?Usage: ./gcp_setup.sh <GCP_PROJECT_ID> <YOUR_EMAIL>}"
-REGION="us-central1"
+# One region for everything (Firestore, Cloud Run, Scheduler) — matches
+# deploy.sh/cloudbuild.yaml, and keeps Cloud Run <-> Firestore latency low.
+CLOUD_RUN_REGION="us-east4"
 # Matches the service account name deploy.sh/cloudbuild.yaml actually deploy with.
 SA_NAME="mahitha-booking-api"
 SA_EMAIL="$SA_NAME@$PROJECT_ID.iam.gserviceaccount.com"
-KEY_FILE="backend/serviceAccount.json"
 SERVICE_NAME="mahitha-booking-api"
-CLOUD_RUN_REGION="us-east4"
 SCHEDULER_JOB_NAME="top-up-availability"
 
 echo ""
@@ -37,7 +37,7 @@ gcloud config set project "$PROJECT_ID"
 
 # 2. Enable required APIs
 echo "▶ Enabling APIs (Cloud Run, Cloud Build, Firestore, Container Registry,"
-echo "  Cloud Scheduler, Calendar, IAM Credentials)..."
+echo "  Cloud Scheduler, Calendar, IAM, IAM Credentials)..."
 gcloud services enable \
   run.googleapis.com \
   cloudbuild.googleapis.com \
@@ -45,6 +45,7 @@ gcloud services enable \
   containerregistry.googleapis.com \
   cloudscheduler.googleapis.com \
   calendar-json.googleapis.com \
+  iam.googleapis.com \
   iamcredentials.googleapis.com \
   --project "$PROJECT_ID"
 echo "  ✓ APIs enabled"
@@ -52,7 +53,7 @@ echo "  ✓ APIs enabled"
 # 3. Create Firestore database (native mode)
 echo "▶ Creating Firestore database..."
 gcloud firestore databases create \
-  --location="$REGION" \
+  --location="$CLOUD_RUN_REGION" \
   --project "$PROJECT_ID" 2>/dev/null || echo "  ℹ Firestore already exists — skipping"
 
 # 4. Create service account for the backend
@@ -79,54 +80,30 @@ gcloud iam service-accounts add-iam-policy-binding "$SA_EMAIL" \
   --project "$PROJECT_ID" \
   --quiet
 
-# 6. Download service account key
-echo "▶ Downloading service account key to $KEY_FILE..."
-gcloud iam service-accounts keys create "$KEY_FILE" \
-  --iam-account="$SA_EMAIL" \
-  --project "$PROJECT_ID"
-echo "  ✓ Key saved to $KEY_FILE"
-echo "  ⚠  Keep this file secret — never commit it to git!"
-
-# 7. Set up Firebase Hosting
+# 6. Set up Firebase Hosting
 echo ""
 echo "▶ Initializing Firebase Hosting..."
 firebase login --no-localhost 2>/dev/null || true
 firebase use --add "$PROJECT_ID" 2>/dev/null || true
 
-# 8. Create Firestore indexes (needed for availability queries)
-echo "▶ Creating Firestore composite index for availability..."
-cat > /tmp/firestore_index.json << 'EOF'
-{
-  "indexes": [
-    {
-      "collectionGroup": "availability",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "booked", "order": "ASCENDING" },
-        { "fieldPath": "datetime", "order": "ASCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "availability",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "booked", "order": "ASCENDING" },
-        { "fieldPath": "date", "order": "ASCENDING" },
-        { "fieldPath": "datetime", "order": "ASCENDING" }
-      ]
-    }
-  ],
-  "fieldOverrides": []
-}
-EOF
-
+# 7. Create Firestore composite indexes (needed for availability queries)
+echo "▶ Creating Firestore composite indexes for availability..."
 gcloud firestore indexes composite create \
   --collection-group=availability \
   --field-config=field-path=booked,order=ascending \
   --field-config=field-path=datetime,order=ascending \
   --project "$PROJECT_ID" 2>/dev/null || echo "  ℹ Index already exists or being created"
 
-# 9. Create/update the weekly availability top-up Cloud Scheduler job.
+# Needed for the /availability?date=... filtered query in backend/main.py,
+# which adds an equality filter on "date" on top of booked+datetime.
+gcloud firestore indexes composite create \
+  --collection-group=availability \
+  --field-config=field-path=booked,order=ascending \
+  --field-config=field-path=date,order=ascending \
+  --field-config=field-path=datetime,order=ascending \
+  --project "$PROJECT_ID" 2>/dev/null || echo "  ℹ Index already exists or being created"
+
+# 8. Create/update the weekly availability top-up Cloud Scheduler job.
 # Needs the Cloud Run service to already be deployed (to read its URL and
 # admin credentials) — safe to skip on a first run and re-run later via
 # `./gcp_setup.sh <PROJECT_ID> <EMAIL>` again after `./deploy.sh` has run.
@@ -142,21 +119,40 @@ else
   ADMIN_ENV_JSON=$(gcloud run services describe "$SERVICE_NAME" \
     --platform managed --region "$CLOUD_RUN_REGION" --project "$PROJECT_ID" \
     --format="json(spec.template.spec.containers[0].env)")
-  ADMIN_USERNAME_VAL=$(echo "$ADMIN_ENV_JSON" | python3 -c "
-import json, sys
+  # Values may be set inline or via a Secret Manager reference
+  # (valueFrom.secretKeyRef); resolve either form.
+  ADMIN_CREDS=$(echo "$ADMIN_ENV_JSON" | python3 -c "
+import json, subprocess, sys
+
+def resolve(env, name):
+    for e in env:
+        if e.get('name') != name:
+            continue
+        if 'value' in e:
+            return e['value']
+        secret_ref = e.get('valueFrom', {}).get('secretKeyRef', {})
+        secret_name = secret_ref.get('name', '')
+        version = secret_ref.get('key') or 'latest'
+        if not secret_name:
+            return ''
+        result = subprocess.run(
+            ['gcloud', 'secrets', 'versions', 'access', version,
+             '--secret', secret_name, '--project', '$PROJECT_ID'],
+            capture_output=True, text=True)
+        return result.stdout.strip() if result.returncode == 0 else ''
+    return ''
+
 env = json.load(sys.stdin)['spec']['template']['spec']['containers'][0].get('env', [])
-print(next((e.get('value', '') for e in env if e.get('name') == 'ADMIN_USERNAME'), ''))
+print(resolve(env, 'ADMIN_USERNAME'))
+print(resolve(env, 'ADMIN_PASSWORD'))
 ")
-  ADMIN_PASSWORD_VAL=$(echo "$ADMIN_ENV_JSON" | python3 -c "
-import json, sys
-env = json.load(sys.stdin)['spec']['template']['spec']['containers'][0].get('env', [])
-print(next((e.get('value', '') for e in env if e.get('name') == 'ADMIN_PASSWORD'), ''))
-")
+  ADMIN_USERNAME_VAL=$(echo "$ADMIN_CREDS" | sed -n '1p')
+  ADMIN_PASSWORD_VAL=$(echo "$ADMIN_CREDS" | sed -n '2p')
 
   if [ -z "$ADMIN_USERNAME_VAL" ] || [ -z "$ADMIN_PASSWORD_VAL" ]; then
     echo "  ℹ ADMIN_USERNAME/ADMIN_PASSWORD not set on the Cloud Run service yet — skipping."
   else
-    AUTH_HEADER_VALUE="Basic $(printf '%s' "${ADMIN_USERNAME_VAL}:${ADMIN_PASSWORD_VAL}" | base64)"
+    AUTH_HEADER_VALUE="Basic $(printf '%s' "${ADMIN_USERNAME_VAL}:${ADMIN_PASSWORD_VAL}" | base64 | tr -d '\n')"
 
     if gcloud scheduler jobs describe "$SCHEDULER_JOB_NAME" \
         --project "$PROJECT_ID" --location "$CLOUD_RUN_REGION" >/dev/null 2>&1; then
@@ -188,9 +184,8 @@ echo ""
 echo "Next steps:"
 echo ""
 echo "  1. Copy backend/.env.example → backend/.env and fill in:"
-echo "       GOOGLE_APPLICATION_CREDENTIALS=serviceAccount.json"
-echo "       SENDGRID_API_KEY=SG.xxxx         ← get from sendgrid.com (free)"
-echo "       SENDER_EMAIL=noreply@mahithavaka.com"
+echo "       GMAIL_USER=you@gmail.com"
+echo "       GMAIL_APP_PASSWORD=xxxx          ← app password, not your Gmail password"
 echo "       HOST_EMAIL=mahitha@mahithavaka.com"
 echo ""
 echo "  2. Seed Firestore with sessions + available slots:"
