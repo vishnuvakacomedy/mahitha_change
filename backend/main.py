@@ -1,14 +1,14 @@
 import logging
 import os
 import secrets
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
 from zoneinfo import ZoneInfo
 
 import stripe
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
@@ -17,6 +17,7 @@ from google.cloud import firestore
 from pydantic import BaseModel, EmailStr, Field
 
 from email_service import (
+    send_booking_cancellation,
     send_booking_confirmation,
     send_host_lead_notification,
     send_host_notification,
@@ -41,6 +42,10 @@ if not ADMIN_USERNAME or not ADMIN_PASSWORD:
     )
 
 ET = ZoneInfo("America/New_York")
+
+# How long a slot stays "held" after checkout starts before it's reclaimable.
+# Covers the case where a customer abandons Stripe Checkout without cancelling.
+HOLD_TTL_MINUTES = 15
 
 security = HTTPBasic()
 
@@ -107,6 +112,20 @@ def _format_challenge(req: CheckoutRequest) -> str:
     )
 
 
+def _hold_active(data: dict) -> bool:
+    """True if the slot's hold (if any) hasn't expired yet."""
+    if not data.get("held"):
+        return False
+    held_at = data.get("held_at")
+    if not held_at:
+        return False
+    try:
+        held_dt = datetime.fromisoformat(held_at)
+    except ValueError:
+        return False
+    return datetime.now(timezone.utc) - held_dt < timedelta(minutes=HOLD_TTL_MINUTES)
+
+
 def _pending_payload(req: CheckoutRequest, slot_datetime: str) -> dict:
     """Shape the Firestore document for a pending booking."""
     return {
@@ -142,15 +161,21 @@ def get_availability(date: Optional[str] = None):
     if date:
         ref = ref.where("date", "==", date)
     docs = ref.order_by("datetime").stream()
-    return [{"id": doc.id, **doc.to_dict()} for doc in docs]
+    slots = []
+    for doc in docs:
+        data = doc.to_dict() or {}
+        if _hold_active(data):
+            continue
+        slots.append({"id": doc.id, **data})
+    return slots
 
 
 @app.post("/create-checkout-session")
-def create_checkout_session(req: CheckoutRequest):
+def create_checkout_session(req: CheckoutRequest, background_tasks: BackgroundTasks):
     """Reserve the slot inside a transaction, then create a Stripe Checkout session."""
     slot_ref = db.collection("availability").document(req.slot_id)
 
-    # Atomically verify the slot is free and mark it as held.
+    # Atomically verify the slot is free (or its prior hold expired) and mark it as held.
     transaction = db.transaction()
 
     @firestore.transactional
@@ -159,7 +184,7 @@ def create_checkout_session(req: CheckoutRequest):
         if not snap.exists:
             raise HTTPException(status_code=404, detail="Slot not found")
         data = snap.to_dict() or {}
-        if data.get("booked") or data.get("held"):
+        if data.get("booked") or _hold_active(data):
             raise HTTPException(status_code=409, detail="Slot already booked")
         tx.update(slot_ref, {"held": True, "held_at": datetime.now(timezone.utc).isoformat()})
         return data.get("datetime")
@@ -170,7 +195,9 @@ def create_checkout_session(req: CheckoutRequest):
     pending_id = pending_ref[1].id
 
     # Notify host of the lead immediately so they see it even if payment is abandoned.
-    send_host_lead_notification(
+    # Backgrounded so a slow SMTP handshake doesn't delay the redirect to Stripe.
+    background_tasks.add_task(
+        send_host_lead_notification,
         req.name,
         req.email,
         req.phone,
@@ -213,7 +240,7 @@ def create_checkout_session(req: CheckoutRequest):
 
 
 @app.post("/webhook")
-async def stripe_webhook(request: Request):
+async def stripe_webhook(request: Request, background_tasks: BackgroundTasks):
     """Handle Stripe payment confirmation. Must be idempotent — Stripe retries on any non-2xx."""
     payload = await request.body()
     sig_header = request.headers.get("stripe-signature")
@@ -249,8 +276,10 @@ async def stripe_webhook(request: Request):
     pending_ref = db.collection("pending_bookings").document(pending_id)
     pending = pending_ref.get()
     if not pending.exists:
-        log.warning("Webhook: pending booking %s not found", pending_id)
-        return {"status": "not_found"}
+        # Non-2xx so Stripe retries — this can be an eventual-consistency race
+        # (pending doc not visible yet) rather than genuinely missing data.
+        log.warning("Webhook: pending booking %s not found, will retry", pending_id)
+        raise HTTPException(status_code=500, detail="Pending booking not found")
 
     data = pending.to_dict() or {}
 
@@ -275,8 +304,12 @@ async def stripe_webhook(request: Request):
 
     pending_ref.update({"status": "confirmed", "booking_id": booking_id})
 
-    send_booking_confirmation(data["name"], data["email"], data["slot_datetime"], booking_id)
-    send_host_notification(
+    # Backgrounded so Stripe's webhook call returns promptly regardless of SMTP latency.
+    background_tasks.add_task(
+        send_booking_confirmation, data["name"], data["email"], data["slot_datetime"], booking_id
+    )
+    background_tasks.add_task(
+        send_host_notification,
         data["name"],
         data["email"],
         data.get("phone", ""),
@@ -368,8 +401,13 @@ def admin_delete_slot(slot_id: str, _=Depends(require_admin)):
 
 
 @app.delete("/admin/bookings/{booking_id}")
-def admin_cancel_booking(booking_id: str, _=Depends(require_admin)):
-    """Cancel a booking and free up the slot."""
+def admin_cancel_booking(booking_id: str, background_tasks: BackgroundTasks, _=Depends(require_admin)):
+    """Cancel a booking and free up the slot.
+
+    Does not issue a Stripe refund automatically — cancellations are frequently
+    partial-notice or negotiated, so refunds are handled manually by the host.
+    The guest is emailed to contact the host directly for a refund.
+    """
     booking_ref = db.collection("bookings").document(booking_id)
     booking = booking_ref.get()
     if not booking.exists:
@@ -379,6 +417,9 @@ def admin_cancel_booking(booking_id: str, _=Depends(require_admin)):
         {"booked": False, "held": False}
     )
     booking_ref.update({"status": "cancelled"})
+    background_tasks.add_task(
+        send_booking_cancellation, data["name"], data["email"], data["slot_datetime"], booking_id
+    )
     return {"status": "cancelled"}
 
 

@@ -6,7 +6,7 @@ Generates slots Mon–Fri, 9am–5pm (on the hour) for the next 30 days.
 """
 from google.cloud import firestore
 from datetime import datetime, timedelta, timezone
-import pytz
+from zoneinfo import ZoneInfo
 
 db = firestore.Client(project="mahitha-booking")
 
@@ -32,7 +32,7 @@ for s in sessions:
 print(f"  Added {len(sessions)} session(s)")
 
 # ── Availability slots ───────────────────────────────────────────────────────
-TIMEZONE = pytz.timezone("America/New_York")
+TIMEZONE = ZoneInfo("America/New_York")
 WEEKDAY_HOURS = [17, 18, 19, 20]      # Mon–Fri: 5pm–9pm (last slot starts 8pm)
 WEEKEND_HOURS = [9, 10, 11, 12, 13, 14, 15, 16]  # Sat–Sun: 9am–5pm
 DAYS_AHEAD = 30
@@ -53,7 +53,7 @@ for day_offset in range(1, DAYS_AHEAD + 1):
     else:
         continue
     for hour in hours:
-        dt_local = TIMEZONE.localize(datetime(day.year, day.month, day.day, hour, 0, 0))
+        dt_local = datetime(day.year, day.month, day.day, hour, 0, 0, tzinfo=TIMEZONE)
         dt_utc = dt_local.astimezone(timezone.utc)
         db.collection("availability").add({
             "date": day.isoformat(),

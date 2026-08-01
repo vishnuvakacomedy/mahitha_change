@@ -117,6 +117,49 @@ def send_booking_confirmation(name: str, email: str, slot_datetime: str, booking
     _send(email, subject, html_body)
 
 
+def send_booking_cancellation(name: str, email: str, slot_datetime: str, booking_id: str):
+    """Notify the guest that their session was cancelled. Refunds are handled
+    manually by the host, so this points the guest at HOST_EMAIL to request one."""
+    host_email = os.getenv("HOST_EMAIL", GMAIL_USER or "")
+    formatted_dt = _e(_format_dt(slot_datetime))
+    safe_name = _e(name)
+    safe_booking_id = _e(booking_id)
+    safe_host_email = _e(host_email)
+    subject = "Your Coaching Session Was Cancelled — Mahitha Vaka"
+    html_body = f"""
+    <div style="font-family: Georgia, serif; max-width: 560px; margin: 0 auto; color: #2C2C2C;">
+      <div style="background: #846754; padding: 24px 32px; border-radius: 8px 8px 0 0;">
+        <h1 style="color: white; font-weight: normal; font-size: 22px; margin: 0;">
+          Session Cancelled
+        </h1>
+      </div>
+      <div style="background: #faf7f2; padding: 32px; border: 1px solid #ddd8ce; border-top: none; border-radius: 0 0 8px 8px;">
+        <p style="margin-bottom: 16px;">Hi {safe_name},</p>
+        <p style="margin-bottom: 24px;">
+          Your coaching session with <strong>Mahitha Vaka</strong>, originally scheduled for
+          <strong>{formatted_dt}</strong>, has been cancelled.
+        </p>
+
+        <p style="background: #F1EDE4; border-left: 3px solid #846754; padding: 16px 20px;
+                  border-radius: 0 6px 6px 0; margin-bottom: 24px;">
+          If you paid for this session, please reply to
+          <a href="mailto:{safe_host_email}" style="color: #846754;">{safe_host_email}</a>
+          to arrange a refund.
+        </p>
+
+        <p style="margin-bottom: 8px; font-size: 13px; color: #888;">
+          Booking reference: <code style="background: #e8e4dc; padding: 2px 6px; border-radius: 4px;">{safe_booking_id}</code>
+        </p>
+
+        <p style="margin-top: 32px;">Warmly,<br/><strong>Mahitha Vaka</strong><br/>
+          <a href="https://mahithavaka.com" style="color: #846754;">mahithavaka.com</a>
+        </p>
+      </div>
+    </div>
+    """
+    _send(email, subject, html_body)
+
+
 def send_host_lead_notification(guest_name: str, guest_email: str, guest_phone: str,
                                 goal: str, challenge: str,
                                 slot_datetime: str, pending_id: str):

@@ -18,7 +18,6 @@ grpcio==1.78.0
 grpcio-status==1.78.0
 h11==0.16.0
 idna==3.11
-MarkupSafe==3.0.3
 proto-plus==1.27.2
 protobuf==6.33.6
 pyasn1==0.6.3
@@ -34,4 +33,3 @@ typing-inspection==0.4.2
 typing_extensions==4.15.0
 urllib3==2.6.3
 uvicorn==0.42.0
-Werkzeug==3.1.7

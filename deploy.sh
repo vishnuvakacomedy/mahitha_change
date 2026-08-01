@@ -10,14 +10,8 @@ SERVICE_NAME="mahitha-booking-api"
 SA_EMAIL="mahitha-booking-api@$PROJECT_ID.iam.gserviceaccount.com"
 IMAGE="us-east4-docker.pkg.dev/$PROJECT_ID/mahitha-booking/$SERVICE_NAME"
 
-echo "▶ Building frontend..."
-export NVM_DIR="$HOME/.nvm"
-[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-cd frontend
-VITE_API_URL="" npm run build
-cd ..
-
 echo "▶ Building and deploying to Cloud Run (frontend + backend)..."
+# cloudbuild.yaml builds the frontend itself, so there's no local build step here.
 # Cloud Build needs frontend files accessible — build from project root
 gcloud builds submit . \
   --config cloudbuild.yaml \
