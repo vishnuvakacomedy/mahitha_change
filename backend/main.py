@@ -53,6 +53,11 @@ AVAILABILITY_WINDOW_DAYS = 90
 WEEKDAY_HOURS = [17, 18, 19, 20]                 # Mon-Fri: 5pm-9pm (last slot starts 8pm)
 WEEKEND_HOURS = [9, 10, 11, 12, 13, 14, 15, 16]  # Sat-Sun: 9am-5pm (last slot starts 4pm)
 
+# Minimum advance notice required to book. Booking any time on a given day
+# blocks that whole day plus the next one — e.g. booking Saturday makes
+# Monday the earliest bookable day.
+MIN_ADVANCE_BOOKING_DAYS = 2
+
 security = HTTPBasic()
 
 
@@ -118,6 +123,11 @@ def _format_challenge(req: CheckoutRequest) -> str:
     )
 
 
+def _min_bookable_date() -> str:
+    """Earliest ET calendar date (YYYY-MM-DD) a slot may still be booked for."""
+    return (datetime.now(ET).date() + timedelta(days=MIN_ADVANCE_BOOKING_DAYS)).isoformat()
+
+
 def _hold_active(data: dict) -> bool:
     """True if the slot's hold (if any) hasn't expired yet."""
     if not data.get("held"):
@@ -167,10 +177,13 @@ def get_availability(date: Optional[str] = None):
     if date:
         ref = ref.where("date", "==", date)
     docs = ref.order_by("datetime").stream()
+    min_date = _min_bookable_date()
     slots = []
     for doc in docs:
         data = doc.to_dict() or {}
         if _hold_active(data):
+            continue
+        if data.get("date", "") < min_date:
             continue
         slots.append({"id": doc.id, **data})
     return slots
@@ -192,6 +205,11 @@ def create_checkout_session(req: CheckoutRequest, background_tasks: BackgroundTa
         data = snap.to_dict() or {}
         if data.get("booked") or _hold_active(data):
             raise HTTPException(status_code=409, detail="Slot already booked")
+        if data.get("date", "") < _min_bookable_date():
+            raise HTTPException(
+                status_code=400,
+                detail="This slot is too soon to book — please choose a later date",
+            )
         tx.update(slot_ref, {"held": True, "held_at": datetime.now(timezone.utc).isoformat()})
         return data.get("datetime")
 
