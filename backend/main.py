@@ -47,6 +47,12 @@ ET = ZoneInfo("America/New_York")
 # Covers the case where a customer abandons Stripe Checkout without cancelling.
 HOLD_TTL_MINUTES = 15
 
+# Business hours availability is kept topped up to, on a rolling basis.
+# See admin_top_up_availability — intended to be called on a schedule.
+AVAILABILITY_WINDOW_DAYS = 30
+WEEKDAY_HOURS = [17, 18, 19, 20]                 # Mon-Fri: 5pm-9pm (last slot starts 8pm)
+WEEKEND_HOURS = [9, 10, 11, 12, 13, 14, 15, 16]  # Sat-Sun: 9am-5pm (last slot starts 4pm)
+
 security = HTTPBasic()
 
 
@@ -377,6 +383,65 @@ def admin_add_slot(req: SlotRequest, _=Depends(require_admin)):
         }
     )
     return {"id": ref[1].id, "date": req.date, "hour": req.hour}
+
+
+@app.post("/admin/top-up-availability")
+def admin_top_up_availability(_=Depends(require_admin)):
+    """Fill in any missing business-hours slots out to AVAILABILITY_WINDOW_DAYS
+    from today (ET). Idempotent — skips (date, hour) combos that already exist,
+    so it's safe to call repeatedly (e.g. on a weekly Cloud Scheduler job) to
+    keep the rolling window from ever running dry."""
+    today = datetime.now(ET).date()
+    start = today + timedelta(days=1)
+    end = today + timedelta(days=AVAILABILITY_WINDOW_DAYS)
+
+    existing_docs = (
+        db.collection("availability")
+        .where("date", ">=", start.isoformat())
+        .where("date", "<=", end.isoformat())
+        .stream()
+    )
+    existing_pairs = set()
+    for doc in existing_docs:
+        data = doc.to_dict() or {}
+        date_str = data.get("date")
+        dt_str = data.get("datetime")
+        if not date_str or not dt_str:
+            continue
+        try:
+            hour_et = datetime.fromisoformat(dt_str).astimezone(ET).hour
+        except ValueError:
+            continue
+        existing_pairs.add((date_str, hour_et))
+
+    batch = db.batch()
+    batch_size = 0
+    added = 0
+    day = start
+    while day <= end:
+        hours = WEEKDAY_HOURS if day.weekday() < 5 else WEEKEND_HOURS
+        for hour in hours:
+            if (day.isoformat(), hour) in existing_pairs:
+                continue
+            dt_local = datetime(day.year, day.month, day.day, hour, 0, 0, tzinfo=ET)
+            ref = db.collection("availability").document()
+            batch.set(ref, {
+                "date": day.isoformat(),
+                "datetime": dt_local.astimezone(timezone.utc).isoformat(),
+                "timezone": "America/New_York",
+                "booked": False,
+            })
+            added += 1
+            batch_size += 1
+            if batch_size == 400:  # Firestore batch write limit
+                batch.commit()
+                batch = db.batch()
+                batch_size = 0
+        day += timedelta(days=1)
+    if batch_size:
+        batch.commit()
+
+    return {"added": added, "window_end": end.isoformat()}
 
 
 @app.delete("/admin/slots/{slot_id}")
