@@ -16,6 +16,8 @@ from fastapi.staticfiles import StaticFiles
 from google.cloud import firestore
 from pydantic import BaseModel, EmailStr, Field
 
+from calendar_service import create_event as create_calendar_event
+from calendar_service import delete_event as delete_calendar_event
 from email_service import (
     send_booking_cancellation,
     send_booking_confirmation,
@@ -160,6 +162,15 @@ def _pending_payload(req: CheckoutRequest, slot_datetime: str) -> dict:
         "created_at": datetime.now(timezone.utc).isoformat(),
         "status": "pending",
     }
+
+
+def _sync_calendar_event(booking_id: str, name: str, email: str, phone: str,
+                          goal: str, challenge: str, slot_datetime: str):
+    """Create the Calendar event for a confirmed booking and persist its ID
+    so it can be removed later if the booking is cancelled."""
+    event_id = create_calendar_event(name, email, phone, goal, challenge, slot_datetime, booking_id)
+    if event_id:
+        db.collection("bookings").document(booking_id).update({"calendar_event_id": event_id})
 
 
 # ── Public routes ────────────────────────────────────────────────────────────
@@ -342,6 +353,16 @@ async def stripe_webhook(request: Request, background_tasks: BackgroundTasks):
         data["slot_datetime"],
         booking_id,
     )
+    background_tasks.add_task(
+        _sync_calendar_event,
+        booking_id,
+        data["name"],
+        data["email"],
+        data.get("phone", ""),
+        data.get("goal", ""),
+        data.get("challenge", ""),
+        data["slot_datetime"],
+    )
 
     return {"status": "ok"}
 
@@ -503,6 +524,8 @@ def admin_cancel_booking(booking_id: str, background_tasks: BackgroundTasks, _=D
     background_tasks.add_task(
         send_booking_cancellation, data["name"], data["email"], data["slot_datetime"], booking_id
     )
+    if data.get("calendar_event_id"):
+        background_tasks.add_task(delete_calendar_event, data["calendar_event_id"])
     return {"status": "cancelled"}
 
 
