@@ -170,6 +170,8 @@ export default function BookingPage() {
                 value={selectedDate}
                 tileDisabled={tileDisabled}
                 minDate={new Date()}
+                next2Label={null}
+                prev2Label={null}
               />
 
               {selectedDate && (
