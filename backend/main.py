@@ -96,6 +96,7 @@ db = firestore.Client(project=os.getenv("GCP_PROJECT", "mahitha-booking"))
 
 class CheckoutRequest(BaseModel):
     slot_id: str
+    session_id: str = Field(min_length=1)
     name: str = Field(min_length=1, max_length=200)
     email: EmailStr
     phone: str = Field(default="", max_length=40)
@@ -229,19 +230,6 @@ def create_checkout_session(req: CheckoutRequest, background_tasks: BackgroundTa
     pending_ref = db.collection("pending_bookings").add(_pending_payload(req, slot_datetime))
     pending_id = pending_ref[1].id
 
-    # Notify host of the lead immediately so they see it even if payment is abandoned.
-    # Backgrounded so a slow SMTP handshake doesn't delay the redirect to Stripe.
-    background_tasks.add_task(
-        send_host_lead_notification,
-        req.name,
-        req.email,
-        req.phone,
-        _format_goal(req),
-        _format_challenge(req),
-        slot_datetime,
-        pending_id,
-    )
-
     try:
         checkout = stripe.checkout.Session.create(
             payment_method_types=["card"],
@@ -262,7 +250,7 @@ def create_checkout_session(req: CheckoutRequest, background_tasks: BackgroundTa
             customer_email=req.email,
             metadata={"pending_id": pending_id},
             success_url=f"{APP_URL}/confirm?session_id={{CHECKOUT_SESSION_ID}}",
-            cancel_url=f"{APP_URL}/book/{req.slot_id}?cancelled=true",
+            cancel_url=f"{APP_URL}/book/{req.session_id}?cancelled=true",
         )
     except Exception:
         # Release the hold if Stripe fails so the slot doesn't get stuck.
@@ -270,6 +258,21 @@ def create_checkout_session(req: CheckoutRequest, background_tasks: BackgroundTa
         slot_ref.update({"held": False, "held_at": firestore.DELETE_FIELD})
         db.collection("pending_bookings").document(pending_id).delete()
         raise HTTPException(status_code=502, detail="Payment provider unavailable")
+
+    # Notify host of the lead immediately so they see it even if payment is abandoned.
+    # Backgrounded so a slow SMTP handshake doesn't delay the redirect to Stripe.
+    # Queued only after Stripe succeeds: background tasks queued before a raised
+    # exception never run (FastAPI only attaches them to a normal response).
+    background_tasks.add_task(
+        send_host_lead_notification,
+        req.name,
+        req.email,
+        req.phone,
+        _format_goal(req),
+        _format_challenge(req),
+        slot_datetime,
+        pending_id,
+    )
 
     return {"checkout_url": checkout.url}
 
@@ -297,47 +300,55 @@ async def stripe_webhook(request: Request, background_tasks: BackgroundTasks):
     if not pending_id:
         return {"status": "ignored"}
 
-    # Idempotency check #1: have we already confirmed a booking for this Stripe session?
-    existing = list(
-        db.collection("bookings")
-        .where("stripe_session_id", "==", stripe_session_id)
-        .limit(1)
-        .stream()
-    )
-    if existing:
-        log.info("Webhook replay for session %s — already confirmed", stripe_session_id)
-        return {"status": "already_confirmed"}
-
     pending_ref = db.collection("pending_bookings").document(pending_id)
-    pending = pending_ref.get()
-    if not pending.exists:
-        # Non-2xx so Stripe retries — this can be an eventual-consistency race
-        # (pending doc not visible yet) rather than genuinely missing data.
-        log.warning("Webhook: pending booking %s not found, will retry", pending_id)
-        raise HTTPException(status_code=500, detail="Pending booking not found")
 
-    data = pending.to_dict() or {}
+    # Idempotency check + confirmation writes happen atomically in one transaction,
+    # so two near-simultaneous webhook deliveries for the same session can't both
+    # pass the "already confirmed?" check and double-book the slot / double-send emails.
+    transaction = db.transaction()
 
-    # Idempotency check #2: pending was already flipped to confirmed on a prior retry.
-    if data.get("status") == "confirmed":
-        return {"status": "already_confirmed"}
+    @firestore.transactional
+    def _confirm(tx) -> Optional[tuple[str, dict]]:
+        existing = list(
+            db.collection("bookings")
+            .where("stripe_session_id", "==", stripe_session_id)
+            .limit(1)
+            .stream(transaction=tx)
+        )
+        if existing:
+            return None
 
-    # Mark slot as booked (and clear the "held" flag set at checkout time).
-    db.collection("availability").document(data["slot_id"]).update(
-        {"booked": True, "held": False}
-    )
+        pending_snap = pending_ref.get(transaction=tx)
+        if not pending_snap.exists:
+            # Non-2xx so Stripe retries — this can be an eventual-consistency race
+            # (pending doc not visible yet) rather than genuinely missing data.
+            raise HTTPException(status_code=500, detail="Pending booking not found")
 
-    booking_ref = db.collection("bookings").add(
-        {
+        data = pending_snap.to_dict() or {}
+        if data.get("status") == "confirmed":
+            return None
+
+        booking_ref = db.collection("bookings").document()
+        tx.set(booking_ref, {
             **data,
             "stripe_session_id": stripe_session_id,
             "status": "confirmed",
             "confirmed_at": datetime.now(timezone.utc).isoformat(),
-        }
-    )
-    booking_id = booking_ref[1].id
+        })
+        # Mark slot as booked (and clear the "held" flag set at checkout time).
+        tx.update(
+            db.collection("availability").document(data["slot_id"]),
+            {"booked": True, "held": False},
+        )
+        tx.update(pending_ref, {"status": "confirmed", "booking_id": booking_ref.id})
+        return booking_ref.id, data
 
-    pending_ref.update({"status": "confirmed", "booking_id": booking_id})
+    result = _confirm(transaction)
+    if result is None:
+        log.info("Webhook replay for session %s — already confirmed", stripe_session_id)
+        return {"status": "already_confirmed"}
+
+    booking_id, data = result
 
     # Backgrounded so Stripe's webhook call returns promptly regardless of SMTP latency.
     background_tasks.add_task(

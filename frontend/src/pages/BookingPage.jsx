@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import Calendar from 'react-calendar'
 import 'react-calendar/dist/Calendar.css'
 import {
@@ -22,6 +22,8 @@ const GOAL_OPTIONS = [
 export default function BookingPage() {
   const { sessionId } = useParams()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const wasCancelled = searchParams.get('cancelled') === 'true'
 
   const [session, setSession] = useState(null)
   const [slots, setSlots] = useState([])
@@ -92,6 +94,7 @@ export default function BookingPage() {
     try {
       const result = await createCheckoutSession({
         slot_id: selectedSlot.id,
+        session_id: sessionId,
         name: form.name,
         email: form.email,
         phone: form.phone,
@@ -152,6 +155,11 @@ export default function BookingPage() {
         <main className={styles.main}>
 
           {loadError && <p className={styles.error}>{loadError}</p>}
+          {wasCancelled && !loadError && (
+            <p className={styles.error}>
+              Checkout was cancelled — your card was not charged. Pick a time below to try again.
+            </p>
+          )}
 
           {!showForm ? (
             <>
